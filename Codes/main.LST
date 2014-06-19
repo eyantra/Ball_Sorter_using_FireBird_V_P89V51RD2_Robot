@@ -1,0 +1,179 @@
+C51 COMPILER V8.08   MAIN                                                                  10/04/2010 14:37:11 PAGE 1   
+
+
+C51 COMPILER V8.08, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN main.OBJ
+COMPILER INVOKED BY: C:\Keil\C51\BIN\C51.EXE main.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          #include<intrins.h>
+   2          #include"p89v51rx2.h"
+   3          #include"lcd.h"
+   4          
+   5          sbit touch_sensor=P1^6; // Touch Sensor Connected to Pin 1.6
+   6          
+   7          sbit start_conv = P3^6;          //P3^6 is connected to Start and ALE pin of ADC0808
+   8          sbit output_enable = P3^7;               //P3^7 is connected to Output Enable Pin of ADC0808
+   9          
+  10          unsigned char i=0;  //used in main function during ADC conversion 
+  11          
+  12          
+  13          void white_count_display(unsigned char number)
+  14          {
+  15   1       unsigned char temp;
+  16   1       temp=number/10;
+  17   1       LCD_CMD(0x86);
+  18   1       LCD_CHAR(temp+48);
+  19   1       temp=number%10;
+  20   1       LCD_CMD(0x87);
+  21   1       LCD_CHAR(temp+48);
+  22   1      }
+  23          
+  24          void black_count_display(unsigned char number)
+  25          {
+  26   1       unsigned char temp;
+  27   1       temp=number/10;
+  28   1       LCD_CMD(0xC6);
+  29   1       LCD_CHAR(temp+48);
+  30   1       temp=number%10;
+  31   1       LCD_CMD(0xC7);
+  32   1       LCD_CHAR(temp+48);
+  33   1      }
+  34          
+  35          void total_count_display(unsigned char number)
+  36          {
+  37   1       unsigned char temp;
+  38   1       temp=number/10;
+  39   1       LCD_CMD(0xCB);
+  40   1       LCD_CHAR(temp+48);
+  41   1       temp=number%10;
+  42   1       LCD_CMD(0xCC);
+  43   1       LCD_CHAR(temp+48);
+  44   1      }
+  45          
+  46          
+  47          unsigned char ADC_conversion(unsigned char ADC_ch_no)
+  48          {
+  49   1              unsigned char ADC_data;
+  50   1              
+  51   1              P0 = ADC_ch_no;           // to select channel no. send address on P0
+  52   1              
+  53   1              start_conv = 1; // ADC0808 will latch the address on L-H transition on the ALE pin
+  54   1              start_conv = 0; // ADC0808 will start conversion on H-L transition on the start pin
+  55   1              delay_ms(2);    // conversion time for ADC0808
+C51 COMPILER V8.08   MAIN                                                                  10/04/2010 14:37:11 PAGE 2   
+
+  56   1              
+  57   1              P0 =0xFF;               // output enable and read
+  58   1              output_enable = 1;      //Enabling o/p of ADC0808 for to read the converted data
+  59   1              ADC_data = P0;          //storing adc_data
+  60   1              output_enable = 0;      //disabling ADC 0808 o/p
+  61   1              return ADC_data;        //returning adc_data
+  62   1      }
+  63          
+  64          
+  65          void servo_init()
+  66          { /* Initial Timer0 Generate Overflow PCA */
+  67   1              TMOD = 0x02; // 8-bit auto-reload Timer/Counter ‘THx’ holds a value which is to be reloaded into ‘TLx’ ea
+             -ch time it overflows. 
+  68   1              TH0  = 0xB8;     
+  69   1              TR0=1;          // To on/set Timer 0
+  70   1          CMOD=0x04;  //Clock get from Timer 0, Timer0 overflow = 1 clock to PCA
+  71   1          CCAPM0=0x42;
+  72   1          CCAPM1=0x42;
+  73   1          CCAPM2=0x42;
+  74   1          CCAPM3=0x42;
+  75   1          CCAPM4=0x42;
+  76   1          CCAP0H=0x00;
+  77   1          CCAP1H=0x00;
+  78   1          CCAP2H=0x00;
+  79   1          CCAP3H=0x00;
+  80   1          CCAP4H=0x00;
+  81   1          CCON=0x40;
+  82   1      
+  83   1          IEN0 = 0x00;
+  84   1          P1 = 0xFF; /* Motor STOP */
+  85   1          delay_ms(30);    
+  86   1          IEN0 = 0x80; /* Start interrupt */
+  87   1      }
+  88          
+  89          void run_servo(unsigned char servo_no, unsigned int angle)
+  90          {
+  91   1        float value;
+  92   1        value=(((angle*0.91666)/7.2)+(6.4));  // 25 Positions  || 6.4 is value for .5 mSec
+  93   1                                                                                      // 180 / 25 position = 7.2 Multiply factor
+  94   1                                                                                      // Correction factor 0.91666
+  95   1                                                                                      // Correction at 165 -> 180 degree
+  96   1        switch(servo_no)
+  97   1        {
+  98   2              case 1: CCAP2H=(256-value); 
+  99   2                              break;                                  
+ 100   2              case 2: CCAP3H=(256-value);     
+ 101   2                              break;                                  
+ 102   2              case 3: CCAP4H=(256-value);             
+ 103   2                              break;
+ 104   2        }
+ 105   1      }
+ 106          
+ 107          void main(void)
+ 108          {
+ 109   1       unsigned char white_count=0;   // White Ball Counter variable
+ 110   1       unsigned char black_count=0;   // Black Ball Counter variable
+ 111   1       unsigned char color_sensor_value=0; // Color Sensor
+ 112   1       LCD_INIT();
+ 113   1       servo_init();
+ 114   1       LCD_CMD(LINE1);
+ 115   1       LCD_WRITE("WHITE:00 | TOTAL");
+ 116   1       LCD_CMD(LINE2);
+C51 COMPILER V8.08   MAIN                                                                  10/04/2010 14:37:11 PAGE 3   
+
+ 117   1       LCD_WRITE("BLACK:00 | 00 ");
+ 118   1       LCD_CMD(DON_COFF);
+ 119   1       run_servo(3,90);
+ 120   1       color_sensor_value=ADC_conversion(3);
+ 121   1       while(1)
+ 122   1       {
+ 123   2               if(touch_sensor==0)//If Touch detected
+ 124   2               {
+ 125   3                         delay_ms(2000);
+ 126   3                         color_sensor_value=ADC_conversion(3);
+ 127   3                      
+ 128   3                         if(color_sensor_value>30)
+ 129   3                         {
+ 130   4                              run_servo(3,165);
+ 131   4                              black_count++;
+ 132   4                              black_count_display(black_count);
+ 133   4                              total_count_display(white_count+black_count);
+ 134   4                              delay_ms(800);
+ 135   4                         }
+ 136   3                         else
+ 137   3                         {
+ 138   4                              run_servo(3,15);
+ 139   4                              white_count++;
+ 140   4                              white_count_display(white_count);
+ 141   4                              total_count_display(white_count+black_count);
+ 142   4                              delay_ms(800);
+ 143   4                         }
+ 144   3               }
+ 145   2               else
+ 146   2               {
+ 147   3                buzzer=1;     //Buzzer OFF
+ 148   3                run_servo(3,90);
+ 149   3               }
+ 150   2       } 
+ 151   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    662    ----
+   CONSTANT SIZE    =     32    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     12      18
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
